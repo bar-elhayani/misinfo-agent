@@ -7,3 +7,7 @@ data/raw/*
 !data/raw/.gitkeep
 .DS_Store
 data/*.duckdb
+dbt_project/logs/
+logs/
+target/
+dbt_packages/
