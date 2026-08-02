@@ -11,3 +11,4 @@ dbt_project/logs/
 logs/
 target/
 dbt_packages/
+data/chroma/
