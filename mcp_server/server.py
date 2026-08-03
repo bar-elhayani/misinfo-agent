@@ -3,14 +3,30 @@ MCP server exposing tools backed by the dbt marts (DuckDB) and the
 FEVER-based fact-check RAG collection (Chroma).
 """
 
-import duckdb
-from mcp.server import MCPServer
+import json
 from pathlib import Path
+
+import anthropic
 import chromadb
+import duckdb
+from dotenv import load_dotenv
+from mcp.server import MCPServer
+
+load_dotenv()
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 DB_PATH = str(PROJECT_ROOT / "data" / "misinfo.duckdb")
+CHROMA_PATH = str(PROJECT_ROOT / "data" / "chroma")
+
 mcp = MCPServer("misinfo-agent-tools")
+
+_anthropic_client = anthropic.Anthropic()
+
+with open(PROJECT_ROOT / "prompts" / "classify_claim" / "system_prompt_v1.md") as f:
+    _classify_claim_system_prompt = f.read()
+
+_chroma_client = chromadb.PersistentClient(path=CHROMA_PATH)
+_factchecks_collection = _chroma_client.get_or_create_collection(name="factchecks")
 
 
 @mcp.tool()
@@ -57,12 +73,6 @@ def get_network_summary(graph_id: str) -> dict:
     return result.iloc[0].to_dict()
 
 
-
-CHROMA_PATH = str(PROJECT_ROOT / "data" / "chroma")
-_chroma_client = chromadb.PersistentClient(path=CHROMA_PATH)
-_factchecks_collection = _chroma_client.get_or_create_collection(name="factchecks")
-
-
 @mcp.tool()
 def search_fact_checks(claim_text: str, n_results: int = 5) -> list[dict]:
     """
@@ -84,6 +94,39 @@ def search_fact_checks(claim_text: str, n_results: int = 5) -> list[dict]:
         })
 
     return matches
+
+
+@mcp.tool()
+def classify_claim(claim_text: str) -> dict:
+    """
+    Classify a claim as SUPPORTS, REFUTES, or NOT ENOUGH INFO by
+    retrieving related evidence from the FEVER fact-check corpus
+    and asking an LLM to reason over it.
+    """
+    evidence = search_fact_checks(claim_text, n_results=5)
+
+    user_message = (
+        f"Claim to verify: {claim_text}\n\n"
+        f"Retrieved evidence:\n{json.dumps(evidence, indent=2)}"
+    )
+
+    response = _anthropic_client.messages.create(
+        model="claude-sonnet-4-6",
+        max_tokens=500,
+        system=_classify_claim_system_prompt,
+        messages=[{"role": "user", "content": user_message}],
+    )
+
+    raw_text = response.content[0].text
+
+    try:
+        result = json.loads(raw_text)
+    except json.JSONDecodeError:
+        return {"error": "Model did not return valid JSON", "raw_response": raw_text}
+
+    result["sources_used"] = evidence
+    return result
+
 
 if __name__ == "__main__":
     mcp.run()

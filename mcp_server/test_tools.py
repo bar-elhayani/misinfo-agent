@@ -1,5 +1,4 @@
-from server import get_article_features, get_network_summary, search_fact_checks
-
+from server import get_article_features, get_network_summary, search_fact_checks, classify_claim
 print("--- Testing get_article_features ---")
 print(get_article_features(0))
 
@@ -15,3 +14,7 @@ print("\n--- Testing search_fact_checks ---")
 results = search_fact_checks("The Eiffel Tower is located in Paris.", n_results=3)
 for r in results:
     print(r)
+
+print("\n--- Testing classify_claim ---")
+result = classify_claim("The Eiffel Tower is located in Paris.")
+print(result)
