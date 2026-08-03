@@ -6,6 +6,7 @@ FEVER-based fact-check RAG collection (Chroma).
 import duckdb
 from mcp.server import MCPServer
 from pathlib import Path
+import chromadb
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 DB_PATH = str(PROJECT_ROOT / "data" / "misinfo.duckdb")
@@ -55,6 +56,34 @@ def get_network_summary(graph_id: str) -> dict:
 
     return result.iloc[0].to_dict()
 
+
+
+CHROMA_PATH = str(PROJECT_ROOT / "data" / "chroma")
+_chroma_client = chromadb.PersistentClient(path=CHROMA_PATH)
+_factchecks_collection = _chroma_client.get_or_create_collection(name="factchecks")
+
+
+@mcp.tool()
+def search_fact_checks(claim_text: str, n_results: int = 5) -> list[dict]:
+    """
+    Search the FEVER fact-check corpus for claims semantically similar
+    to the given claim. Returns matching claims with their verdict
+    (SUPPORTS/REFUTES/NOT ENOUGH INFO) and supporting Wikipedia sources.
+    """
+    results = _factchecks_collection.query(
+        query_texts=[claim_text],
+        n_results=n_results,
+    )
+
+    matches = []
+    for doc, meta in zip(results["documents"][0], results["metadatas"][0]):
+        matches.append({
+            "claim": doc,
+            "label": meta["label"],
+            "evidence_wiki_urls": meta["evidence_wiki_urls"],
+        })
+
+    return matches
 
 if __name__ == "__main__":
     mcp.run()
