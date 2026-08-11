@@ -28,6 +28,20 @@ with open(PROJECT_ROOT / "prompts" / "classify_claim" / "system_prompt_v1.md") a
 _chroma_client = chromadb.PersistentClient(path=CHROMA_PATH)
 _factchecks_collection = _chroma_client.get_or_create_collection(name="factchecks")
 
+with open(PROJECT_ROOT / "prompts" / "network_agent" / "system_prompt_v1.md") as f:
+    _network_agent_system_prompt = f.read()
+
+def _parse_json_response(raw_text: str) -> dict:
+    """
+    Parse a JSON object from an LLM response, tolerating the common case
+    where the model wraps it in markdown code fences despite instructions
+    not to.
+    """
+    cleaned = raw_text.strip()
+    if cleaned.startswith("```"):
+        cleaned = cleaned.split("\n", 1)[1] if "\n" in cleaned else cleaned
+        cleaned = cleaned.rsplit("```", 1)[0]
+    return json.loads(cleaned.strip())
 
 @mcp.tool()
 def get_article_features(article_id: int) -> dict:
@@ -95,7 +109,6 @@ def search_fact_checks(claim_text: str, n_results: int = 5) -> list[dict]:
 
     return matches
 
-
 @mcp.tool()
 def classify_claim(claim_text: str) -> dict:
     """
@@ -120,13 +133,43 @@ def classify_claim(claim_text: str) -> dict:
     raw_text = response.content[0].text
 
     try:
-        result = json.loads(raw_text)
+        result = _parse_json_response(raw_text)
     except json.JSONDecodeError:
         return {"error": "Model did not return valid JSON", "raw_response": raw_text}
 
     result["sources_used"] = evidence
     return result
 
+@mcp.tool()
+def assess_network_pattern(graph_id: str) -> dict:
+    """
+    Assess whether a propagation graph's spread pattern looks organic
+    or suspicious/coordinated, using an LLM to reason over the network
+    metrics from mart_network_summary.
+    """
+    network_data = get_network_summary(graph_id)
+
+    if "error" in network_data:
+        return network_data
+
+    user_message = f"Propagation metrics:\n{json.dumps(network_data, indent=2)}"
+
+    response = _anthropic_client.messages.create(
+        model="claude-sonnet-4-6",
+        max_tokens=500,
+        system=_network_agent_system_prompt,
+        messages=[{"role": "user", "content": user_message}],
+    )
+
+    raw_text = response.content[0].text
+
+    try:
+        result = _parse_json_response(raw_text)
+    except json.JSONDecodeError:
+        return {"error": "Model did not return valid JSON", "raw_response": raw_text}
+
+    result["network_data"] = network_data
+    return result
 
 if __name__ == "__main__":
     mcp.run()
