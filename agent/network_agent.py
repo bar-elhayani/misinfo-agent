@@ -18,14 +18,17 @@ class AgentState(TypedDict):
     network_verdict: dict | None
 
 
-def network_agent_node(state: AgentState) -> AgentState:
+def network_agent_node(state: dict) -> dict:
     """
-    LangGraph node: takes the graph_id from the state, runs
-    assess_network_pattern, and returns an updated state with the
-    verdict added.
+    LangGraph node: if a graph_id is present in the state, runs
+    assess_network_pattern and adds the verdict. If no graph_id was
+    provided, skips network analysis entirely.
     """
+    if not state.get("graph_id"):
+        return {**state, "network_verdict": {"assessment": "SKIPPED", "reasoning": "No graph_id provided."}}
+
     verdict = assess_network_pattern(state["graph_id"])
-    return {"graph_id": state["graph_id"], "network_verdict": verdict}
+    return {**state, "network_verdict": verdict}
 
 
 from langgraph.graph import StateGraph, END

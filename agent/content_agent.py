@@ -20,13 +20,13 @@ class AgentState(TypedDict):
     content_verdict: dict | None
 
 
-def content_agent_node(state: AgentState) -> AgentState:
+def content_agent_node(state: dict) -> dict:
     """
     LangGraph node: takes the claim from the state, runs classify_claim,
-    and returns an updated state with the verdict added.
+    and returns the state updated with the content verdict.
     """
     verdict = classify_claim(state["claim_text"])
-    return {"claim_text": state["claim_text"], "content_verdict": verdict}
+    return {**state, "content_verdict": verdict}
 
 from langgraph.graph import StateGraph, END
 
