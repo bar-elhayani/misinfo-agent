@@ -8,11 +8,11 @@ import sys
 from pathlib import Path
 from typing import TypedDict
 
-sys.path.append(str(Path(__file__).resolve().parent.parent / "mcp_server"))
-
-from server import _anthropic_client, _parse_json_response
-
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
+sys.path.append(str(PROJECT_ROOT))
+sys.path.append(str(Path(__file__).resolve().parent))
+
+from shared_utils import anthropic_client, parse_json_response
 
 with open(PROJECT_ROOT / "prompts" / "supervisor" / "system_prompt_v1.md") as f:
     _supervisor_system_prompt = f.read()
@@ -39,7 +39,7 @@ def supervisor_node(state: dict) -> dict:
         f"Network assessment:\n{json.dumps(state['network_verdict'], indent=2)}"
     )
 
-    response = _anthropic_client.messages.create(
+    response = anthropic_client.messages.create(
         model="claude-sonnet-4-6",
         max_tokens=500,
         system=_supervisor_system_prompt,
@@ -49,7 +49,7 @@ def supervisor_node(state: dict) -> dict:
     raw_text = response.content[0].text
 
     try:
-        result = _parse_json_response(raw_text)
+        result = parse_json_response(raw_text)
     except json.JSONDecodeError:
         result = {"error": "Model did not return valid JSON", "raw_response": raw_text}
 

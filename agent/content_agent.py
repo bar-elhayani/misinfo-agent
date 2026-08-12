@@ -2,17 +2,18 @@
 Content Agent: wraps the classify_claim MCP tool inside a LangGraph node.
 This is the first, simplest agent in the multi-agent system - it only
 reasons about the claim's text content, not network/propagation data.
+
+Calls classify_claim through the real MCP protocol (HTTP), not a direct
+Python import - the MCP server must be running for this to work.
 """
 
 import sys
 from pathlib import Path
 from typing import TypedDict
 
-# Add mcp_server/ to the import path so we can reuse classify_claim directly,
-# without going through the full MCP protocol for now.
-sys.path.append(str(Path(__file__).resolve().parent.parent / "mcp_server"))
+sys.path.append(str(Path(__file__).resolve().parent))
 
-from server import classify_claim
+from mcp_client import call_tool
 
 
 class AgentState(TypedDict):
@@ -22,11 +23,12 @@ class AgentState(TypedDict):
 
 def content_agent_node(state: dict) -> dict:
     """
-    LangGraph node: takes the claim from the state, runs classify_claim,
-    and returns the state updated with the content verdict.
+    LangGraph node: takes the claim from the state, calls classify_claim
+    via MCP, and returns the state updated with the content verdict.
     """
-    verdict = classify_claim(state["claim_text"])
+    verdict = call_tool("classify_claim", {"claim_text": state["claim_text"]})
     return {**state, "content_verdict": verdict}
+
 
 from langgraph.graph import StateGraph, END
 
