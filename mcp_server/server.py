@@ -172,4 +172,4 @@ def assess_network_pattern(graph_id: str) -> dict:
     return result
 
 if __name__ == "__main__":
-    mcp.run()
+    mcp.run(transport="streamable-http")
