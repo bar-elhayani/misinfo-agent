@@ -7,11 +7,15 @@ initial agent development.
 
 import asyncio
 import json
+import os
 
 from mcp import ClientSession
 from mcp.client.streamable_http import streamable_http_client
 
-MCP_SERVER_URL = "http://127.0.0.1:8000/mcp"
+# Defaults to localhost for local development. In Docker Compose, this
+# is overridden to the service name (e.g. "http://mcp-server:8000/mcp"),
+# since containers reach each other by service name, not localhost.
+MCP_SERVER_URL = os.environ.get("MCP_SERVER_URL", "http://127.0.0.1:8000/mcp")
 
 
 async def _call_tool_async(tool_name: str, arguments: dict) -> dict:

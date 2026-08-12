@@ -1,0 +1,29 @@
+services:
+  mcp-server:
+    build:
+      context: .
+      dockerfile: mcp_server/Dockerfile
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./data:/app/data
+    env_file:
+      - .env
+    healthcheck:
+      test: ["CMD", "python3", "-c", "import socket; s = socket.socket(); s.settimeout(2); s.connect(('localhost', 8000)); s.close()"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+      start_period: 10s
+
+  agent:
+    build:
+      context: .
+      dockerfile: agent/Dockerfile
+    environment:
+      - MCP_SERVER_URL=http://mcp-server:8000/mcp
+    env_file:
+      - .env
+    depends_on:
+      mcp-server:
+        condition: service_healthy
